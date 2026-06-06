@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* ── CSS custom properties synced from Telegram theme ── */
+:root {
+  --tg-bg: #ffffff;
+  --tg-text: #000000;
+  --tg-hint: #999999;
+  --tg-link: #2481cc;
+  --tg-button: #2481cc;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #f1f1f1;
+}
+
+/* ── Base ──────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Telegram viewport fix */
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ── Scrollbar (thin) ──────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+.dark ::-webkit-scrollbar-thumb { background: #444; }
+
+/* ── Animations ────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.25s ease-out both; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
