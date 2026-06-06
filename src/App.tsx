@@ -4,6 +4,7 @@ import { initTelegram, tg } from '@/lib/telegram';
 import { syncTelegramUser } from '@/services/auth';
 import { useUserStore } from '@/store/useUserStore';
 import { useThemeStore } from '@/store/useThemeStore';
+import { Spinner } from '@/components/ui/Spinner';
 
 // Layouts
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -19,9 +20,18 @@ import { AdminDashboard }    from '@/pages/admin/AdminDashboard';
 import { AdminProducts }     from '@/pages/admin/AdminProducts';
 import { AdminOrders }       from '@/pages/admin/AdminOrders';
 
-// Admin guard — only accessible if user.is_admin
+// Admin guard — waits for auth to resolve before redirecting
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
-  const user = useUserStore((s) => s.user);
+  const user    = useUserStore((s) => s.user);
+  const loading = useUserStore((s) => s.loading);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner size="lg" className="text-zinc-400" />
+      </div>
+    );
+  }
   if (!user?.is_admin) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
@@ -46,9 +56,9 @@ const router = createBrowserRouter([
       </AdminGuard>
     ),
     children: [
-      { index: true,          element: <AdminDashboard /> },
-      { path: 'products',     element: <AdminProducts /> },
-      { path: 'orders',       element: <AdminOrders /> },
+      { index: true,       element: <AdminDashboard /> },
+      { path: 'products',  element: <AdminProducts /> },
+      { path: 'orders',    element: <AdminOrders /> },
     ],
   },
 ]);
@@ -58,10 +68,10 @@ export const App = () => {
   const { syncFromTelegram } = useThemeStore();
 
   useEffect(() => {
-    // 1. Init Telegram WebApp
+    // 1. Init Telegram WebApp (safe no-op outside Telegram)
     initTelegram();
 
-    // 2. Sync theme
+    // 2. Sync theme from Telegram or default to light
     syncFromTelegram();
 
     // 3. Listen for Telegram theme changes
@@ -69,12 +79,13 @@ export const App = () => {
     const handleThemeChange = () => syncFromTelegram();
     webapp?.onEvent('themeChanged', handleThemeChange);
 
-    // 4. Sync user to DB
+    // 4. Sync Telegram user to DB (gracefully handles non-Telegram browsers)
     syncTelegramUser()
-      .then((user) => {
-        setUser(user);
+      .then((user) => setUser(user))
+      .catch((err) => {
+        console.error('User sync failed:', err);
+        setUser(null);
       })
-      .catch(console.error)
       .finally(() => setLoading(false));
 
     return () => {
