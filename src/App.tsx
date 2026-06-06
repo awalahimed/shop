@@ -16,11 +16,12 @@ import { SearchPage }        from '@/pages/SearchPage';
 import { ProductDetailPage } from '@/pages/ProductDetailPage';
 import { CartPage }          from '@/pages/CartPage';
 import { OrdersPage }        from '@/pages/OrdersPage';
+import { AdminLogin }        from '@/pages/admin/AdminLogin';
 import { AdminDashboard }    from '@/pages/admin/AdminDashboard';
 import { AdminProducts }     from '@/pages/admin/AdminProducts';
 import { AdminOrders }       from '@/pages/admin/AdminOrders';
 
-// Admin guard — waits for auth to resolve before redirecting
+// Admin guard — shows login page if not admin
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
   const user    = useUserStore((s) => s.user);
   const loading = useUserStore((s) => s.loading);
@@ -32,7 +33,8 @@ const AdminGuard = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  if (!user?.is_admin) return <Navigate to="/" replace />;
+  // Not admin → show login instead of redirecting away
+  if (!user?.is_admin) return <AdminLogin />;
   return <>{children}</>;
 };
 
@@ -61,6 +63,8 @@ const router = createBrowserRouter([
       { path: 'orders',    element: <AdminOrders /> },
     ],
   },
+  // Redirect any unknown route to home
+  { path: '*', element: <Navigate to="/" replace /> },
 ]);
 
 export const App = () => {
@@ -68,18 +72,13 @@ export const App = () => {
   const { syncFromTelegram } = useThemeStore();
 
   useEffect(() => {
-    // 1. Init Telegram WebApp (safe no-op outside Telegram)
     initTelegram();
-
-    // 2. Sync theme from Telegram or default to light
     syncFromTelegram();
 
-    // 3. Listen for Telegram theme changes
     const webapp = tg();
     const handleThemeChange = () => syncFromTelegram();
     webapp?.onEvent('themeChanged', handleThemeChange);
 
-    // 4. Sync Telegram user to DB (gracefully handles non-Telegram browsers)
     syncTelegramUser()
       .then((user) => setUser(user))
       .catch((err) => {
