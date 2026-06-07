@@ -1,35 +1,35 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+// Vercel Serverless Function — no type imports needed
+export default async function handler(req: Request): Promise<Response> {
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
 
-type Req = IncomingMessage & { body?: Record<string, unknown>; query?: Record<string, string> };
-type Res = ServerResponse & {
-  status: (code: number) => Res;
-  json: (data: unknown) => void;
-  end: () => void;
-  setHeader: (key: string, value: string) => void;
-};
-
-export default async function handler(req: Req, res: Res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: cors });
+  }
 
   try {
-    const { orderId, amount, email, firstName, lastName } = req.body;
+    const body = await req.json();
+    const { orderId, amount, email, firstName, lastName } = body;
 
     if (!orderId || !amount || !email) {
-      return res.status(400).json({ error: 'orderId, amount, email are required' });
+      return new Response(
+        JSON.stringify({ error: 'orderId, amount, email are required' }),
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
     }
 
     const CHAPA_KEY = process.env.CHAPA_SECRET_KEY;
     if (!CHAPA_KEY) {
-      return res.status(500).json({ error: 'CHAPA_SECRET_KEY not configured in Vercel env vars' });
+      return new Response(
+        JSON.stringify({ error: 'CHAPA_SECRET_KEY not set in Vercel environment variables' }),
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const APP_URL = process.env.VITE_APP_URL ?? 'https://unionshop.vercel.app';
+    const APP_URL = 'https://unionshop.vercel.app';
     const txRef = `union-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
@@ -53,21 +53,23 @@ export default async function handler(req: Req, res: Res) {
     const chapaData = await chapaRes.json();
 
     if (chapaData.status !== 'success') {
-      console.error('Chapa error:', JSON.stringify(chapaData));
-      return res.status(500).json({
-        error: chapaData.message ?? 'Chapa payment initialization failed',
-        detail: chapaData,
-      });
+      return new Response(
+        JSON.stringify({ error: chapaData.message ?? 'Chapa failed', detail: chapaData }),
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
+      );
     }
 
-    return res.status(200).json({
-      checkout_url: chapaData.data.checkout_url,
-      tx_ref: txRef,
-      order_id: orderId,
-    });
+    return new Response(
+      JSON.stringify({ checkout_url: chapaData.data.checkout_url, tx_ref: txRef }),
+      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
+    );
 
   } catch (err) {
-    console.error('chapa-init error:', err);
-    return res.status(500).json({ error: String(err) });
+    return new Response(
+      JSON.stringify({ error: String(err) }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
+
+export const config = { runtime: 'edge' };
