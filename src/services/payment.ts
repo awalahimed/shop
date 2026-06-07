@@ -1,9 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import type { ChapaInitResponse, ChapaVerifyResponse } from '@/types';
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
 /**
- * Call the Supabase Edge Function to initialize a Chapa payment.
- * Returns the checkout URL and transaction reference.
+ * Call the chapa-init Edge Function via direct fetch.
+ * Using fetch instead of supabase.functions.invoke gives us
+ * full error details from the function response body.
  */
 export const initializePayment = async (
   orderId: string,
@@ -12,25 +16,50 @@ export const initializePayment = async (
   firstName: string,
   lastName: string,
 ): Promise<ChapaInitResponse> => {
-  const { data, error } = await supabase.functions.invoke('chapa-init', {
-    body: { orderId, amount, email, firstName, lastName },
+  const url = `${SUPABASE_URL}/functions/v1/chapa-init`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ orderId, amount, email, firstName, lastName }),
   });
 
-  if (error) throw new Error(error.message);
+  const data = await res.json();
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Edge Function error: ${res.status}`);
+  }
+
   return data as ChapaInitResponse;
 };
 
 /**
- * Call the Supabase Edge Function to verify a Chapa payment.
- * The Edge Function updates the order's payment_status in the DB.
+ * Call the chapa-verify Edge Function via direct fetch.
  */
 export const verifyPayment = async (
   txRef: string,
 ): Promise<ChapaVerifyResponse> => {
-  const { data, error } = await supabase.functions.invoke('chapa-verify', {
-    body: { txRef },
+  const url = `${SUPABASE_URL}/functions/v1/chapa-verify`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ txRef }),
   });
 
-  if (error) throw new Error(error.message);
+  const data = await res.json();
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `Edge Function error: ${res.status}`);
+  }
+
   return data as ChapaVerifyResponse;
 };
