@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag } from '@/components/ui/icons';
 import { useCartStore } from '@/store/useCartStore';
@@ -9,12 +10,12 @@ import { formatPrice } from '@/utils/format';
 import { createOrder } from '@/services/orders';
 import { initializePayment } from '@/services/payment';
 import { haptic, tg } from '@/lib/telegram';
-import { useState } from 'react';
 
 export const CartPage = () => {
   const navigate = useNavigate();
   const { items, totalItems, totalPrice, clearCart } = useCartStore();
   const user = useUserStore((s) => s.user);
+  const loading = useUserStore((s) => s.loading);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,10 +23,15 @@ export const CartPage = () => {
   const total = totalPrice();
 
   const handleCheckout = async () => {
+    // Still loading user
+    if (loading) return;
+
+    // No user — can happen when opened in browser outside Telegram
     if (!user) {
-      setError('User not found. Please restart the app.');
+      setError('Could not identify your account. Please open this app inside Telegram.');
       return;
     }
+
     if (items.length === 0) return;
 
     setCheckingOut(true);
@@ -33,29 +39,39 @@ export const CartPage = () => {
     haptic.medium();
 
     try {
-      // 1. Create the order in DB
+      // 1. Create pending order in DB
       const order = await createOrder(user.id, items, total);
 
-      // 2. Initialize Chapa payment
+      // 2. Build a valid email from telegram_id
+      const email = `user${user.telegram_id}@union.shop`;
+
+      // 3. Initialize Chapa payment via Edge Function
       const { checkout_url } = await initializePayment(
         order.id,
         total,
-        `${user.telegram_id}@union.shop`, // placeholder email
+        email,
         user.first_name,
-        user.last_name ?? '',
+        user.last_name ?? 'User',
       );
 
-      // 3. Clear cart
+      // 4. Clear cart before opening payment
       clearCart();
 
-      // 4. Open Chapa checkout in Telegram
-      tg()?.openLink(checkout_url);
+      // 5. Open Chapa — inside Telegram use openLink, in browser use window.open
+      const webapp = tg();
+      if (webapp) {
+        webapp.openLink(checkout_url);
+      } else {
+        window.open(checkout_url, '_blank');
+      }
 
-      // Navigate to orders page
+      // 6. Navigate to orders so user can track
       navigate('/orders');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Checkout failed');
+      const msg = e instanceof Error ? e.message : 'Checkout failed';
+      setError(msg);
       haptic.error();
+      console.error('Checkout error:', e);
     } finally {
       setCheckingOut(false);
     }
@@ -84,17 +100,19 @@ export const CartPage = () => {
     <div className="px-4 pt-6 pb-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Cart</h1>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">{count} item{count !== 1 && 's'}</span>
+        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          {count} item{count !== 1 && 's'}
+        </span>
       </div>
 
-      {/* Items */}
+      {/* Items list */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl px-4 border border-zinc-100 dark:border-zinc-800 shadow-sm">
         {items.map((item) => (
           <CartItemRow key={`${item.product.id}-${item.size}`} item={item} />
         ))}
       </div>
 
-      {/* Summary */}
+      {/* Order summary */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-2">
         <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-400">
           <span>Subtotal</span>
@@ -102,7 +120,7 @@ export const CartPage = () => {
         </div>
         <div className="flex justify-between text-sm text-zinc-600 dark:text-zinc-400">
           <span>Shipping</span>
-          <span className="text-green-600">Free</span>
+          <span className="text-green-600 font-medium">Free</span>
         </div>
         <div className="border-t border-zinc-100 dark:border-zinc-800 pt-2 flex justify-between font-bold text-zinc-900 dark:text-white">
           <span>Total</span>
@@ -110,18 +128,26 @@ export const CartPage = () => {
         </div>
       </div>
 
+      {/* Error message */}
       {error && (
-        <p className="text-sm text-red-500 text-center">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3">
+          <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+        </div>
       )}
 
+      {/* Checkout button */}
       <Button
         fullWidth
         size="lg"
-        loading={checkingOut}
+        loading={checkingOut || loading}
         onClick={handleCheckout}
       >
-        Checkout · {formatPrice(total)}
+        {checkingOut ? 'Processing…' : `Checkout · ${formatPrice(total)}`}
       </Button>
+
+      <p className="text-xs text-zinc-400 text-center">
+        Powered by Chapa · Secure payment
+      </p>
     </div>
   );
 };

@@ -1,7 +1,9 @@
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ClipboardList } from '@/components/ui/icons';
 import { useUserOrders } from '@/hooks/useOrders';
 import { useUserStore } from '@/store/useUserStore';
+import { verifyPayment } from '@/services/payment';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
@@ -27,9 +29,9 @@ const OrderCard = ({ order }: { order: Order }) => {
     <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-3 animate-fadeIn">
       <div className="flex justify-between items-start">
         <div>
-          <p className="text-xs text-zinc-400">Order</p>
-          <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white truncate max-w-[160px]">
-            #{order.id.slice(0, 8)}
+          <p className="text-xs text-zinc-400">Order ID</p>
+          <p className="font-mono text-sm font-medium text-zinc-900 dark:text-white">
+            #{order.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
         <div className="text-right">
@@ -47,13 +49,15 @@ const OrderCard = ({ order }: { order: Order }) => {
         </Badge>
       </div>
 
-      {/* Items summary */}
       {order.items && order.items.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1 pt-1 border-t border-zinc-100 dark:border-zinc-800">
           {order.items.map((item) => (
             <div key={item.id} className="flex justify-between text-sm text-zinc-600 dark:text-zinc-400">
-              <span>{item.product?.name ?? 'Product'} × {item.quantity} ({item.size})</span>
-              <span>{formatPrice(item.price * item.quantity)}</span>
+              <span className="truncate max-w-[200px]">
+                {item.product?.name ?? 'Product'} × {item.quantity}
+                <span className="ml-1 text-xs text-zinc-400">({item.size})</span>
+              </span>
+              <span className="flex-shrink-0 ml-2">{formatPrice(item.price * item.quantity)}</span>
             </div>
           ))}
         </div>
@@ -64,8 +68,30 @@ const OrderCard = ({ order }: { order: Order }) => {
 
 export const OrdersPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = useUserStore((s) => s.user);
-  const { orders, loading, error } = useUserOrders(user?.id);
+  const { orders, loading, error, refetch } = useUserOrders(user?.id);
+  const verifiedRef = useRef(false);
+
+  // Auto-verify payment when Chapa redirects back with tx_ref
+  useEffect(() => {
+    const txRef = searchParams.get('tx_ref') ?? searchParams.get('trx_ref');
+    if (!txRef || verifiedRef.current) return;
+
+    verifiedRef.current = true;
+    console.log('Verifying payment:', txRef);
+
+    verifyPayment(txRef)
+      .then((result) => {
+        console.log('Payment verification result:', result.status);
+        // Refetch orders to show updated status
+        refetch();
+      })
+      .catch((err) => {
+        console.error('Payment verification failed:', err);
+        refetch();
+      });
+  }, [searchParams, refetch]);
 
   if (loading) {
     return (
@@ -77,9 +103,20 @@ export const OrdersPage = () => {
 
   return (
     <div className="px-4 pt-6 pb-4 space-y-4">
-      <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Orders</h1>
+      <h1 className="text-xl font-bold text-zinc-900 dark:text-white">My Orders</h1>
 
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {/* Payment success banner */}
+      {searchParams.get('tx_ref') && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-3 text-center">
+          <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+            ✓ Payment received — your order is being processed
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-500">{error}</p>
+      )}
 
       {orders.length === 0 ? (
         <EmptyState
