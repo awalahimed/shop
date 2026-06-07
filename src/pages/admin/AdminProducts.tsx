@@ -18,8 +18,8 @@ const schema = z.object({
   name:        z.string().min(1, 'Name is required'),
   description: z.string().min(1, 'Description is required'),
   category:    z.string().min(1, 'Category is required'),
-  price:       z.number().min(1, 'Price must be > 0'),
-  stock:       z.number().min(0),
+  price:       z.coerce.number().min(1, 'Price must be greater than 0'),
+  stock:       z.coerce.number().min(0, 'Stock cannot be negative'),
   featured:    z.boolean().optional(),
 });
 
