@@ -21,7 +21,27 @@ export default async function handler(req, res) {
     }
 
     const APP_URL = 'https://unionshop.vercel.app';
-    const txRef = `union-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    // Use timestamp + random to ensure unique tx_ref every time
+    const txRef = `union${Date.now()}${Math.floor(Math.random() * 9999)}`;
+
+    // Ensure amount is a number and at least 1
+    const numAmount = Math.max(1, parseFloat(String(amount)));
+
+    const chapaPayload = {
+      amount: numAmount.toFixed(2),
+      currency: 'ETB',
+      email: email,
+      first_name: (firstName || 'Customer').slice(0, 50),
+      last_name: (lastName || 'User').slice(0, 50),
+      tx_ref: txRef,
+      return_url: `${APP_URL}/orders?tx_ref=${txRef}`,
+      customization: {
+        title: 'Union Shop',
+        description: 'Order payment',
+      },
+    };
+
+    console.log('Sending to Chapa:', JSON.stringify(chapaPayload));
 
     const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
       method: 'POST',
@@ -29,27 +49,27 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${CHAPA_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        amount: String(amount),
-        currency: 'ETB',
-        email,
-        first_name: firstName || 'Customer',
-        last_name: lastName || 'User',
-        tx_ref: txRef,
-        return_url: `${APP_URL}/orders?tx_ref=${txRef}`,
-        customization: { title: 'Union Shop' },
-      }),
+      body: JSON.stringify(chapaPayload),
     });
 
     const data = await chapaRes.json();
+    console.log('Chapa response:', chapaRes.status, JSON.stringify(data));
 
     if (data.status !== 'success') {
-      return res.status(500).json({ error: data.message ?? 'Chapa failed', detail: data });
+      return res.status(500).json({
+        error: data.message ?? 'Chapa payment initialization failed',
+        chapa_status: chapaRes.status,
+        chapa_detail: data,
+      });
     }
 
-    return res.status(200).json({ checkout_url: data.data.checkout_url, tx_ref: txRef });
+    return res.status(200).json({
+      checkout_url: data.data.checkout_url,
+      tx_ref: txRef,
+    });
 
   } catch (err) {
+    console.error('chapa-init crash:', err);
     return res.status(500).json({ error: String(err) });
   }
 }

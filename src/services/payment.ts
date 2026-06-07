@@ -25,7 +25,10 @@ export const initializePayment = async (
   console.log('chapa-init response:', data);
 
   if (!res.ok || data.error) {
-    throw new Error(typeof data.error === 'string' ? data.error : `Payment failed (HTTP ${res.status})`);
+    const msg = typeof data.error === 'string' ? data.error : `Payment failed (HTTP ${res.status})`;
+    const detail = data.chapa_detail ? ` — Chapa: ${JSON.stringify(data.chapa_detail)}` : '';
+    console.error('Payment error:', msg, detail);
+    throw new Error(msg);
   }
 
   return data as ChapaInitResponse;

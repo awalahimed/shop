@@ -42,8 +42,8 @@ export const CartPage = () => {
       // 1. Create pending order in DB
       const order = await createOrder(user.id, items, total);
 
-      // 2. Build a valid email from telegram_id
-      const email = `user${user.telegram_id}@union.shop`;
+      // 2. Use a valid email format Chapa accepts
+      const email = `user${user.telegram_id}@gmail.com`;
 
       // 3. Initialize Chapa payment via Edge Function
       const { checkout_url } = await initializePayment(
