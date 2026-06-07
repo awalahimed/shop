@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import type { ChapaInitResponse, ChapaVerifyResponse } from '@/types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
