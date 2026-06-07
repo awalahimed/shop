@@ -1,38 +1,22 @@
-// Vercel Edge Function — no type imports needed
-export default async function handler(req: Request): Promise<Response> {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+/* eslint-disable */
+// @ts-nocheck
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    let txRef: string | null = null;
+    const txRef = req.method === 'GET'
+      ? req.query?.tx_ref
+      : req.body?.txRef ?? req.body?.tx_ref;
 
-    if (req.method === 'GET') {
-      txRef = new URL(req.url).searchParams.get('tx_ref');
-    } else {
-      const body = await req.json().catch(() => ({}));
-      txRef = body.txRef ?? body.tx_ref ?? null;
-    }
-
-    if (!txRef) {
-      return new Response(
-        JSON.stringify({ error: 'tx_ref required' }),
-        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (!txRef) return res.status(400).json({ error: 'tx_ref required' });
 
     const CHAPA_KEY = process.env.CHAPA_SECRET_KEY;
     if (!CHAPA_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'CHAPA_SECRET_KEY not configured' }),
-        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-      );
+      return res.status(500).json({ error: 'CHAPA_SECRET_KEY not configured' });
     }
 
     const verifyRes = await fetch(
@@ -40,22 +24,15 @@ export default async function handler(req: Request): Promise<Response> {
       { headers: { 'Authorization': `Bearer ${CHAPA_KEY}` } }
     );
 
-    const verifyData = await verifyRes.json();
-    const isSuccess =
-      verifyData.status === 'success' &&
-      verifyData.data?.status === 'success';
+    const data = await verifyRes.json();
+    const isSuccess = data.status === 'success' && data.data?.status === 'success';
 
-    return new Response(
-      JSON.stringify({ status: isSuccess ? 'success' : 'failed', reference: txRef }),
-      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-    );
+    return res.status(200).json({
+      status: isSuccess ? 'success' : 'failed',
+      reference: txRef,
+    });
 
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: String(err) }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return res.status(500).json({ error: String(err) });
   }
 }
-
-export const config = { runtime: 'edge' };

@@ -1,36 +1,27 @@
-// Vercel Serverless Function — no type imports needed
-export default async function handler(req: Request): Promise<Response> {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
+/* eslint-disable */
+// @ts-nocheck
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: cors });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const body = await req.json();
-    const { orderId, amount, email, firstName, lastName } = body;
+    const { orderId, amount, email, firstName, lastName } = req.body;
 
     if (!orderId || !amount || !email) {
-      return new Response(
-        JSON.stringify({ error: 'orderId, amount, email are required' }),
-        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
-      );
+      return res.status(400).json({ error: 'orderId, amount, email are required' });
     }
 
     const CHAPA_KEY = process.env.CHAPA_SECRET_KEY;
     if (!CHAPA_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'CHAPA_SECRET_KEY not set in Vercel environment variables' }),
-        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-      );
+      return res.status(500).json({ error: 'CHAPA_SECRET_KEY not set in Vercel Environment Variables' });
     }
 
     const APP_URL = 'https://unionshop.vercel.app';
-    const txRef = `union-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const txRef = `union-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     const chapaRes = await fetch('https://api.chapa.co/v1/transaction/initialize', {
       method: 'POST',
@@ -50,26 +41,15 @@ export default async function handler(req: Request): Promise<Response> {
       }),
     });
 
-    const chapaData = await chapaRes.json();
+    const data = await chapaRes.json();
 
-    if (chapaData.status !== 'success') {
-      return new Response(
-        JSON.stringify({ error: chapaData.message ?? 'Chapa failed', detail: chapaData }),
-        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
-      );
+    if (data.status !== 'success') {
+      return res.status(500).json({ error: data.message ?? 'Chapa failed', detail: data });
     }
 
-    return new Response(
-      JSON.stringify({ checkout_url: chapaData.data.checkout_url, tx_ref: txRef }),
-      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } }
-    );
+    return res.status(200).json({ checkout_url: data.data.checkout_url, tx_ref: txRef });
 
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: String(err) }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return res.status(500).json({ error: String(err) });
   }
 }
-
-export const config = { runtime: 'edge' };
