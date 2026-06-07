@@ -17,7 +17,7 @@ export const initializePayment = async (
   firstName: string,
   lastName: string,
 ): Promise<ChapaInitResponse> => {
-  const url = `${SUPABASE_URL}/functions/v1/chapa-init`;
+  const url = `${SUPABASE_URL}/functions/v1/smooth-function`;
   console.log('Calling chapa-init:', url);
 
   let res: Response;
@@ -61,7 +61,7 @@ export const initializePayment = async (
 export const verifyPayment = async (
   txRef: string,
 ): Promise<ChapaVerifyResponse> => {
-  const url = `${SUPABASE_URL}/functions/v1/chapa-verify`;
+  const url = `${SUPABASE_URL}/functions/v1/verify-`;
 
   let res: Response;
   try {
