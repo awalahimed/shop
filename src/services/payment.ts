@@ -1,13 +1,15 @@
 import type { ChapaInitResponse, ChapaVerifyResponse } from '@/types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_URL     = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-/**
- * Call the chapa-init Edge Function via direct fetch.
- * Using fetch instead of supabase.functions.invoke gives us
- * full error details from the function response body.
- */
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+  'apikey': SUPABASE_ANON_KEY,
+};
+
+/** Initialize Chapa payment — calls chapa-init Edge Function */
 export const initializePayment = async (
   orderId: string,
   amount: number,
@@ -16,49 +18,68 @@ export const initializePayment = async (
   lastName: string,
 ): Promise<ChapaInitResponse> => {
   const url = `${SUPABASE_URL}/functions/v1/chapa-init`;
+  console.log('Calling chapa-init:', url);
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'apikey': SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ orderId, amount, email, firstName, lastName }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok || data.error) {
-    throw new Error(data.error ?? `Edge Function error: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ orderId, amount, email, firstName, lastName }),
+    });
+  } catch (networkErr) {
+    throw new Error(
+      `Cannot reach Edge Function. Check your internet connection and that the function is deployed. (${networkErr})`,
+    );
   }
 
-  return data as ChapaInitResponse;
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Edge Function returned non-JSON response (HTTP ${res.status})`);
+  }
+
+  console.log('chapa-init response:', data);
+
+  if (!res.ok || data.error) {
+    throw new Error(
+      typeof data.error === 'string'
+        ? data.error
+        : `Payment initialization failed (HTTP ${res.status})`,
+    );
+  }
+
+  if (!data.checkout_url) {
+    throw new Error('No checkout URL returned from payment service');
+  }
+
+  return data as unknown as ChapaInitResponse;
 };
 
-/**
- * Call the chapa-verify Edge Function via direct fetch.
- */
+/** Verify Chapa payment — calls chapa-verify Edge Function */
 export const verifyPayment = async (
   txRef: string,
 ): Promise<ChapaVerifyResponse> => {
   const url = `${SUPABASE_URL}/functions/v1/chapa-verify`;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'apikey': SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ txRef }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok || data.error) {
-    throw new Error(data.error ?? `Edge Function error: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ txRef }),
+    });
+  } catch (networkErr) {
+    throw new Error(`Cannot reach verify function: ${networkErr}`);
   }
 
-  return data as ChapaVerifyResponse;
+  const data = await res.json().catch(() => ({})) as Record<string, unknown>;
+  console.log('chapa-verify response:', data);
+
+  if (!res.ok || data.error) {
+    throw new Error(typeof data.error === 'string' ? data.error : 'Verification failed');
+  }
+
+  return data as unknown as ChapaVerifyResponse;
 };
