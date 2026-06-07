@@ -1,11 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import type { Order, LocalCartItem } from '@/types';
+import type { AddressData } from '@/components/checkout/AddressForm';
 
 /** Create a pending order from cart items */
 export const createOrder = async (
   userId: string,
   items: LocalCartItem[],
   total: number,
+  address?: AddressData,
 ): Promise<Order> => {
   // 1. Insert order
   const { data: order, error: orderError } = await supabase
@@ -15,6 +17,7 @@ export const createOrder = async (
       total,
       payment_status: 'pending',
       order_status: 'pending',
+      delivery_address: address ?? null,
     })
     .select()
     .single();

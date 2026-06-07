@@ -63,6 +63,29 @@ export default async function handler(req, res) {
       });
     }
 
+    // Save tx_ref to order in Supabase
+    const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (SUPABASE_URL && SUPABASE_KEY && orderId !== 'test12345678') {
+      const updateRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ chapa_reference: txRef }),
+        }
+      );
+      if (!updateRes.ok) {
+        console.error('Failed to save tx_ref:', await updateRes.text());
+      }
+    }
+
     return res.status(200).json({
       checkout_url: data.data.checkout_url,
       tx_ref: txRef,
