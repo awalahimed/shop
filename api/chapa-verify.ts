@@ -1,16 +1,87 @@
 /* eslint-disable */
 // @ts-nocheck
+
+async function sendTelegramNotification(botToken, adminChatId, orderData, txRef) {
+  const addr = orderData.delivery_address;
+  const user = orderData.user;
+  const items = orderData.items ?? [];
+
+  const itemLines = items
+    .map(i => `  • ${i.product?.name ?? 'Product'} (${i.size}) × ${i.quantity} — ETB ${(i.price * i.quantity).toLocaleString()}`)
+    .join('\n') || '  No items found';
+
+  const addressBlock = addr
+    ? [
+        `📍 *Delivery Address*`,
+        `  Name: ${addr.full_name}`,
+        `  Phone: ${addr.phone}`,
+        `  City: ${addr.city}, ${addr.subcity}${addr.woreda ? ', Woreda ' + addr.woreda : ''}${addr.house_number ? ', House ' + addr.house_number : ''}`,
+        addr.notes ? `  Notes: ${addr.notes}` : null,
+      ].filter(Boolean).join('\n')
+    : '📍 No delivery address provided';
+
+  const customerName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Unknown';
+  const customerHandle = user?.username ? `@${user.username}` : `ID: ${user?.telegram_id ?? 'unknown'}`;
+
+  const message = [
+    '🛍 *New Order Paid!*',
+    '',
+    `👤 *Customer*`,
+    `  Name: ${customerName}`,
+    `  Telegram: ${customerHandle}`,
+    '',
+    `🧾 *Order \\#${(orderData.id ?? '').slice(0, 8).toUpperCase()}*`,
+    `  Total: ETB ${Number(orderData.total).toLocaleString()}`,
+    `  Status: ✅ Paid & Processing`,
+    '',
+    `📦 *Items*`,
+    itemLines,
+    '',
+    addressBlock,
+    '',
+    `🔑 Ref: \`${txRef}\``,
+  ].join('\n');
+
+  const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: adminChatId,
+      text: message,
+      parse_mode: 'Markdown',
+    }),
+  });
+
+  const tgData = await tgRes.json();
+  if (!tgData.ok) {
+    console.error('Telegram notification failed:', JSON.stringify(tgData));
+  } else {
+    console.log('Telegram notification sent successfully');
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-chapa-signature');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const txRef = req.method === 'GET'
-      ? req.query?.tx_ref
-      : req.body?.txRef ?? req.body?.tx_ref;
+    // Extract tx_ref from GET params, POST body, or Chapa webhook body
+    let txRef = null;
+
+    if (req.method === 'GET') {
+      txRef = req.query?.tx_ref;
+    } else {
+      // Chapa webhook sends: { trx_ref, tx_ref, status, ... }
+      txRef = req.body?.tx_ref
+        ?? req.body?.trx_ref
+        ?? req.body?.txRef
+        ?? null;
+    }
+
+    console.log('Verify called, tx_ref:', txRef, 'method:', req.method);
 
     if (!txRef) return res.status(400).json({ error: 'tx_ref required' });
 
@@ -22,22 +93,21 @@ export default async function handler(req, res) {
 
     if (!CHAPA_KEY) return res.status(500).json({ error: 'CHAPA_SECRET_KEY not configured' });
 
-    // 1. Verify with Chapa
+    // 1. Verify with Chapa API
     const verifyRes = await fetch(
       `https://api.chapa.co/v1/transaction/verify/${txRef}`,
       { headers: { 'Authorization': `Bearer ${CHAPA_KEY}` } }
     );
     const verifyData = await verifyRes.json();
-    console.log('Chapa verify:', verifyData.status, verifyData.data?.status);
+    console.log('Chapa verify status:', verifyData.status, verifyData.data?.status);
 
     const isSuccess =
       verifyData.status === 'success' &&
       verifyData.data?.status === 'success';
 
-    // 2. Update order in Supabase + fetch order details
+    // 2. Update order in Supabase
     let orderData = null;
     if (SUPABASE_URL && SUPABASE_KEY) {
-      // Update payment status
       await fetch(
         `${SUPABASE_URL}/rest/v1/orders?chapa_reference=eq.${encodeURIComponent(txRef)}`,
         {
@@ -55,10 +125,10 @@ export default async function handler(req, res) {
         }
       );
 
-      // Fetch order details for notification
+      // 3. Fetch full order details for notification
       if (isSuccess) {
         const orderRes = await fetch(
-          `${SUPABASE_URL}/rest/v1/orders?chapa_reference=eq.${encodeURIComponent(txRef)}&select=*,user:users(first_name,last_name,username,telegram_id),items:order_items(quantity,size,price,product:products(name)),delivery_address`,
+          `${SUPABASE_URL}/rest/v1/orders?chapa_reference=eq.${encodeURIComponent(txRef)}&select=id,total,delivery_address,user:users(first_name,last_name,username,telegram_id),items:order_items(quantity,size,price,product:products(name))`,
           {
             headers: {
               'apikey': SUPABASE_KEY,
@@ -67,51 +137,16 @@ export default async function handler(req, res) {
           }
         );
         const orders = await orderRes.json();
-        orderData = orders?.[0] ?? null;
+        orderData = Array.isArray(orders) ? orders[0] : null;
+        console.log('Order fetched:', orderData ? 'yes' : 'no');
       }
     }
 
-    // 3. Send Telegram notification to admin
+    // 4. Send Telegram notification
     if (isSuccess && BOT_TOKEN && ADMIN_CHAT_ID && orderData) {
-      const addr = orderData.delivery_address;
-      const user = orderData.user;
-      const items = orderData.items ?? [];
-
-      const itemLines = items
-        .map(i => `  • ${i.product?.name ?? 'Product'} (${i.size}) × ${i.quantity} — ETB ${(i.price * i.quantity).toLocaleString()}`)
-        .join('\n');
-
-      const addressLine = addr
-        ? `\n📍 *Delivery Address*\n  Name: ${addr.full_name}\n  Phone: ${addr.phone}\n  City: ${addr.city}, ${addr.subcity}${addr.woreda ? ', Woreda ' + addr.woreda : ''}${addr.house_number ? ', House ' + addr.house_number : ''}${addr.notes ? '\n  Notes: ' + addr.notes : ''}`
-        : '\n📍 No delivery address provided';
-
-      const message = [
-        '🛍 *New Order Paid!*',
-        '',
-        `👤 *Customer*`,
-        `  Name: ${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim(),
-        user?.username ? `  Telegram: @${user.username}` : `  Telegram ID: ${user?.telegram_id}`,
-        '',
-        `🧾 *Order #${orderData.id?.slice(0, 8).toUpperCase()}*`,
-        `  Total: ETB ${Number(orderData.total).toLocaleString()}`,
-        `  Payment: ✅ Paid`,
-        '',
-        `📦 *Items*`,
-        itemLines,
-        addressLine,
-        '',
-        `🔑 tx_ref: \`${txRef}\``,
-      ].join('\n');
-
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: ADMIN_CHAT_ID,
-          text: message,
-          parse_mode: 'Markdown',
-        }),
-      });
+      await sendTelegramNotification(BOT_TOKEN, ADMIN_CHAT_ID, orderData, txRef);
+    } else if (isSuccess && (!BOT_TOKEN || !ADMIN_CHAT_ID)) {
+      console.warn('Telegram vars missing — TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID not set in Vercel');
     }
 
     return res.status(200).json({

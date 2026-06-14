@@ -34,6 +34,9 @@ export default async function handler(req, res) {
       first_name: (firstName || 'Customer').slice(0, 50),
       last_name: (lastName || 'User').slice(0, 50),
       tx_ref: txRef,
+      // callback_url: Chapa POSTs here after payment (server-side webhook)
+      callback_url: `${APP_URL}/api/chapa-verify`,
+      // return_url: user is redirected here after payment
       return_url: `${APP_URL}/orders?tx_ref=${txRef}`,
       customization: {
         title: 'Union Shop',
