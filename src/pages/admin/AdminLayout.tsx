@@ -1,11 +1,12 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ClipboardList, ArrowLeft } from '@/components/ui/icons';
+import { LayoutDashboard, Package, ClipboardList, ArrowLeft, Users } from '@/components/ui/icons';
 import { cn } from '@/utils/cn';
 
 const NAV = [
-  { to: '/admin',         icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/products', icon: Package,         label: 'Products'             },
-  { to: '/admin/orders',   icon: ClipboardList,   label: 'Orders'               },
+  { to: '/admin',           icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/admin/products',  icon: Package,          label: 'Products'             },
+  { to: '/admin/orders',    icon: ClipboardList,    label: 'Orders'               },
+  { to: '/admin/customers', icon: Users,            label: 'Customers'            },
 ];
 
 export const AdminLayout = () => {

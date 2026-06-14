@@ -20,6 +20,8 @@ import { AdminLogin }        from '@/pages/admin/AdminLogin';
 import { AdminDashboard }    from '@/pages/admin/AdminDashboard';
 import { AdminProducts }     from '@/pages/admin/AdminProducts';
 import { AdminOrders }       from '@/pages/admin/AdminOrders';
+import { AdminOrderDetail }  from '@/pages/admin/AdminOrderDetail';
+import { AdminCustomers }    from '@/pages/admin/AdminCustomers';
 
 // Admin guard — shows login page if not admin
 const AdminGuard = ({ children }: { children: React.ReactNode }) => {
@@ -58,9 +60,11 @@ const router = createBrowserRouter([
       </AdminGuard>
     ),
     children: [
-      { index: true,       element: <AdminDashboard /> },
-      { path: 'products',  element: <AdminProducts /> },
-      { path: 'orders',    element: <AdminOrders /> },
+      { index: true,          element: <AdminDashboard /> },
+      { path: 'products',     element: <AdminProducts /> },
+      { path: 'orders',       element: <AdminOrders /> },
+      { path: 'orders/:id',   element: <AdminOrderDetail /> },
+      { path: 'customers',    element: <AdminCustomers /> },
     ],
   },
   // Redirect any unknown route to home
