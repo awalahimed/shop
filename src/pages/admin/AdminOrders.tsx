@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllOrders, updateOrderStatus } from '@/services/orders';
+import { exportOrdersToCsv } from '@/utils/exportCsv';
 import { Spinner } from '@/components/ui/Spinner';
 import { Search, Eye, X } from '@/components/ui/icons';
 import { formatPrice, formatDate } from '@/utils/format';
@@ -63,6 +64,13 @@ export const AdminOrders = () => {
           <h1 className="text-2xl font-bold text-white">Orders</h1>
           <p className="text-sm text-zinc-500 mt-0.5">{filtered.length} of {orders.length} orders</p>
         </div>
+        <button
+          onClick={() => exportOrdersToCsv(filtered)}
+          disabled={filtered.length === 0}
+          className="flex items-center gap-2 bg-zinc-800 border border-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-xl text-sm hover:bg-zinc-700 hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none"
+        >
+          ↓ Export CSV
+        </button>
       </div>
 
       {/* Filters bar */}

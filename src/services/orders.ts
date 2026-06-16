@@ -90,7 +90,7 @@ export const getAllOrders = async (): Promise<Order[]> => {
   return (data as Order[]) ?? [];
 };
 
-/** Admin: update order status */
+/** Admin: update order status and notify customer */
 export const updateOrderStatus = async (
   orderId: string,
   orderStatus: Order['order_status'],
@@ -101,4 +101,11 @@ export const updateOrderStatus = async (
     .eq('id', orderId);
 
   if (error) throw new Error(error.message);
+
+  // Notify customer via Telegram (fire and forget — don't block on failure)
+  fetch('/api/notify-customer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId, newStatus: orderStatus }),
+  }).catch(console.error);
 };

@@ -54,7 +54,10 @@ export const CartPage = () => {
       // 3. Clear cart
       clearCart();
 
-      // 4. Open Chapa
+      // 4. Check low stock in background (fire and forget)
+      fetch('/api/check-low-stock', { method: 'POST' }).catch(console.error);
+
+      // 5. Open Chapa
       const webapp = tg();
       if (webapp) {
         webapp.openLink(checkout_url);
