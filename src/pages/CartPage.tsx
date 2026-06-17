@@ -85,7 +85,7 @@ export const CartPage = () => {
     haptic.medium();
 
     try {
-      const order = await createOrder(user.id, items, total, address, discountResult?.code ?? null, discountAmt);
+      const order = await createOrder(user.id, items, total, address, discountResult?.code ?? undefined, discountAmt);
 
       const email = `user${user.telegram_id}@gmail.com`;
       const { checkout_url } = await initializePayment(order.id, total, email, user.first_name, user.last_name ?? 'User');
