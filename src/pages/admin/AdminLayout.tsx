@@ -4,17 +4,18 @@ import { cn } from '@/utils/cn';
 import { useUserStore } from '@/store/useUserStore';
 import {
   LayoutDashboard, Package, ClipboardList, Users,
-  ShoppingBag, ArrowLeft, X,
+  ShoppingBag, ArrowLeft, X, DollarSign,
 } from '@/components/ui/icons';
 
 const NAV_SECTIONS = [
   {
     label: 'Main',
     items: [
-      { to: '/admin',           icon: LayoutDashboard, label: 'Dashboard',  end: true },
-      { to: '/admin/orders',    icon: ClipboardList,   label: 'Orders'               },
-      { to: '/admin/products',  icon: Package,         label: 'Products'             },
-      { to: '/admin/customers', icon: Users,           label: 'Customers'            },
+      { to: '/admin',            icon: LayoutDashboard, label: 'Dashboard',  end: true },
+      { to: '/admin/orders',     icon: ClipboardList,   label: 'Orders'               },
+      { to: '/admin/products',   icon: Package,         label: 'Products'             },
+      { to: '/admin/customers',  icon: Users,           label: 'Customers'            },
+      { to: '/admin/discounts',  icon: DollarSign,      label: 'Discounts'            },
     ],
   },
 ];

@@ -8,8 +8,9 @@ export const createOrder = async (
   items: LocalCartItem[],
   total: number,
   address?: AddressData,
+  discountCode?: string,
+  discountAmount?: number,
 ): Promise<Order> => {
-  // 1. Insert order
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
@@ -18,6 +19,8 @@ export const createOrder = async (
       payment_status: 'pending',
       order_status: 'pending',
       delivery_address: address ?? null,
+      discount_code: discountCode ?? null,
+      discount_amount: discountAmount ?? 0,
     })
     .select()
     .single();
